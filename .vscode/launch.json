@@ -1,0 +1,24 @@
+{
+  "configurations": [
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:meeting-countdown}",
+      "name": "Debug MeetingCountdown",
+      "target": "MeetingCountdown",
+      "configuration": "debug",
+      "preLaunchTask": "swift: Build Debug MeetingCountdown"
+    },
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:meeting-countdown}",
+      "name": "Release MeetingCountdown",
+      "target": "MeetingCountdown",
+      "configuration": "release",
+      "preLaunchTask": "swift: Build Release MeetingCountdown"
+    }
+  ]
+}

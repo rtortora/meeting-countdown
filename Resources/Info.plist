@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleExecutable</key>
+	<string>MeetingCountdown</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.rtortora.MeetingCountdown</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>CFBundleName</key>
+	<string>Meeting Countdown</string>
+	<key>CFBundleDisplayName</key>
+	<string>Meeting Countdown</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Meeting Countdown reads your calendars to find your next meeting and show a countdown before it starts.</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Meeting Countdown asks your browser to show the call in a web app window you already have open, such as Google Meet, instead of opening another one.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>Meeting Countdown reads your calendars to find your next meeting and show a countdown before it starts.</string>
+</dict>
+</plist>
