@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds, tests and publishes a GitHub Release from this machine.
+# Builds, tests and publishes a GitHub Release (a .dmg) from this machine.
 # Usage: scripts/release.sh <version>    e.g. scripts/release.sh 0.2.0
 # Signs with the keychain's "Developer ID Application" identity (override with DEVELOPER_ID)
 # and notarizes with the notarytool keychain profile NOTARY_PROFILE (default
@@ -12,7 +12,9 @@ VERSION="${1:?usage: release.sh <version>}"
 TAG="v$VERSION"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP="$ROOT/build/MeetingCountdown.app"
-ZIP="$ROOT/build/MeetingCountdown-$VERSION.zip"
+ZIP="$ROOT/build/MeetingCountdown-notarize.zip"
+DMG="$ROOT/build/MeetingCountdown-$VERSION.dmg"
+STAGING="$ROOT/build/dmg"
 NOTARY_PROFILE="${NOTARY_PROFILE:-meeting-countdown}"
 
 cd "$ROOT"
@@ -39,21 +41,32 @@ if [ -n "$DEVELOPER_ID" ]; then
     codesign --force --options runtime --timestamp \
         --entitlements "$ROOT/Resources/MeetingCountdown.entitlements" \
         --sign "$DEVELOPER_ID" "$APP"
+    # Notarize the app itself (notarytool takes a zip) and staple the ticket, so the copy
+    # dragged out of the disk image opens offline too.
+    rm -f "$ZIP"
+    ditto -c -k --keepParent "$APP" "$ZIP"
+    xcrun notarytool submit "$ZIP" --wait --keychain-profile "$NOTARY_PROFILE"
+    rm -f "$ZIP"
+    xcrun stapler staple "$APP"
+    spctl --assess --type execute --verbose "$APP"
 fi
 codesign --verify --strict --verbose=2 "$APP"
 
-rm -f "$ZIP"
-ditto -c -k --keepParent "$APP" "$ZIP"
+# Disk image: the app next to an Applications shortcut to drag it onto.
+rm -rf "$STAGING" "$DMG"
+mkdir -p "$STAGING"
+ditto "$APP" "$STAGING/MeetingCountdown.app"
+ln -s /Applications "$STAGING/Applications"
+hdiutil create -volname "Meeting Countdown" -srcfolder "$STAGING" -fs HFS+ -format UDZO "$DMG"
+rm -rf "$STAGING"
 if [ -n "$DEVELOPER_ID" ]; then
-    xcrun notarytool submit "$ZIP" --wait --keychain-profile "$NOTARY_PROFILE"
-    xcrun stapler staple "$APP"
-    # Re-zip so the download carries the stapled ticket.
-    rm -f "$ZIP"
-    ditto -c -k --keepParent "$APP" "$ZIP"
-    spctl --assess --type execute --verbose "$APP"
+    codesign --timestamp --sign "$DEVELOPER_ID" "$DMG"
+    xcrun notarytool submit "$DMG" --wait --keychain-profile "$NOTARY_PROFILE"
+    xcrun stapler staple "$DMG"
+    spctl --assess --type open --context context:primary-signature --verbose "$DMG"
 fi
 
 git tag "$TAG"
 git push origin "$TAG"
-gh release create "$TAG" "$ZIP" --title "Meeting Countdown $VERSION" --generate-notes
+gh release create "$TAG" "$DMG" --title "Meeting Countdown $VERSION" --generate-notes
 echo "Released $TAG"
