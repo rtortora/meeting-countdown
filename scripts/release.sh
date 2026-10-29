@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Builds, tests and publishes a GitHub Release (a .dmg) from this machine.
-# Usage: scripts/release.sh [--minor | --major | <version>]
+# Usage: scripts/release.sh [--notes-only] [--minor | --major | <version>]
 # Without arguments, bumps the patch number of the newest vX.Y.Z tag (0.1.0 -> 0.1.1);
 # --minor and --major bump those instead (-> 0.2.0, -> 1.0.0). Asks before publishing.
 # Signs with the keychain's "Developer ID Application" identity (override with DEVELOPER_ID)
@@ -9,7 +9,11 @@
 # Without a Developer ID identity the app is ad-hoc signed, and Gatekeeper blocks it until
 # the user allows it in Privacy & Security.
 # Release notes are drafted by the Codex CLI (`brew bundle` installs it from the Brewfile;
-# then `codex login` with ChatGPT) and opened in $VISUAL/$EDITOR for editing; set EDITOR="code --wait" for VS Code.
+# then `codex login` with ChatGPT) and opened for editing: in VS Code when run from its terminal,
+# with Apply / Cancel buttons from tools/release-notes-vscode (installed on first use), and in
+# $VISUAL/$EDITOR otherwise.
+# --notes-only drafts fresh notes, opens them and prints them, without building or publishing;
+# the next release reuses that draft.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -19,72 +23,110 @@ git fetch -q --tags origin
 LATEST="$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -1)"
 IFS=. read -r MAJOR MINOR PATCH <<<"${LATEST#v}"
 MAJOR="${MAJOR:-0}" MINOR="${MINOR:-0}" PATCH="${PATCH:-0}"
-case "${1:-}" in
-    "") VERSION="$MAJOR.$MINOR.$((PATCH + 1))" ;;
-    --minor) VERSION="$MAJOR.$((MINOR + 1)).0" ;;
-    --major) VERSION="$((MAJOR + 1)).0.0" ;;
-    [0-9]*.[0-9]*.[0-9]*) VERSION="$1" ;;
-    *) echo "usage: release.sh [--minor | --major | <version>]" >&2; exit 1 ;;
-esac
+VERSION="$MAJOR.$MINOR.$((PATCH + 1))"
+NOTES_ONLY=
+for ARG in "$@"; do
+    case "$ARG" in
+        --notes-only) NOTES_ONLY=1 ;;
+        --minor) VERSION="$MAJOR.$((MINOR + 1)).0" ;;
+        --major) VERSION="$((MAJOR + 1)).0.0" ;;
+        [0-9]*.[0-9]*.[0-9]*) VERSION="$ARG" ;;
+        *) echo "usage: release.sh [--notes-only] [--minor | --major | <version>]" >&2; exit 1 ;;
+    esac
+done
 TAG="v$VERSION"
 APP="$ROOT/build/MeetingCountdown.app"
 ZIP="$ROOT/build/MeetingCountdown-notarize.zip"
 DMG="$ROOT/build/MeetingCountdown-$VERSION.dmg"
 STAGING="$ROOT/build/dmg"
 NOTARY_PROFILE="${NOTARY_PROFILE:-meeting-countdown}"
+NOTES="$ROOT/build/release-notes-$TAG.md"
 
-if [ -n "$(git status --porcelain)" ]; then
-    echo "error: working tree has uncommitted changes" >&2
-    exit 1
-fi
-if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
-    echo "error: tag $TAG already exists" >&2
-    exit 1
-fi
+if [ -n "$NOTES_ONLY" ]; then
+    rm -f "$NOTES"
+else
+    if [ -n "$(git status --porcelain)" ]; then
+        echo "error: working tree has uncommitted changes" >&2
+        exit 1
+    fi
+    if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+        echo "error: tag $TAG already exists" >&2
+        exit 1
+    fi
 
-DEVELOPER_ID="${DEVELOPER_ID:-$(security find-identity -v -p codesigning \
-    | { grep 'Developer ID Application' || true; } | head -1 | awk '{print $2}')}"
-if [ -z "$DEVELOPER_ID" ]; then
-    echo "warning: no Developer ID Application identity; the release will be ad-hoc signed" >&2
-fi
+    DEVELOPER_ID="${DEVELOPER_ID:-$(security find-identity -v -p codesigning \
+        | { grep 'Developer ID Application' || true; } | head -1 | awk '{print $2}')}"
+    if [ -z "$DEVELOPER_ID" ]; then
+        echo "warning: no Developer ID Application identity; the release will be ad-hoc signed" >&2
+    fi
 
-read -r -p "Release $TAG (latest: ${LATEST:-none})? [y/N] " REPLY
-[[ "$REPLY" =~ ^[Yy] ]] || exit 1
+    read -r -p "Release $TAG (latest: ${LATEST:-none})? [y/N] " REPLY
+    [[ "$REPLY" =~ ^[Yy] ]] || exit 1
+fi
 
 # Release notes: Codex (signed in with ChatGPT) drafts them from the changes since the last
-# tag, then they open in $VISUAL/$EDITOR for review. A draft left over from an earlier run
+# tag, then they open in an editor for review. A draft left over from an earlier run
 # that failed later on is reused, edits included.
-NOTES="$ROOT/build/release-notes-$TAG.md"
 mkdir -p "$ROOT/build"
 if [ ! -s "$NOTES" ]; then
     BASE="${LATEST:-$(git hash-object -t tree /dev/null)}"
+    read -r -d '' PROMPT <<EOF || true
+Write release notes for Meeting Countdown $VERSION, a macOS menu bar app that counts down to
+your next meeting. Below are the commit messages and diff since ${LATEST:-the first commit}.
+
+Write for people who use the app, not developers. Write a short Markdown list with one bullet
+per change they would notice, most important first. Start each bullet with a past-tense verb
+that says what kind of change it was (Added, Improved, Changed, Fixed, Removed), then say what
+changed and where in the app. These examples only show the style; they aren't in this release:
+- Added a keyboard shortcut in the menu to join the next meeting.
+- Fixed the countdown skipping a minute after the Mac wakes from sleep.
+
+Group related commits into one bullet. Leave out refactors, tests, build scripts and release
+tooling. Output only the list: no heading, and no sentence before or after it.
+EOF
     if command -v codex >/dev/null; then
         {
             git log --no-merges --format='- %s%n%b' ${LATEST:+"$LATEST..HEAD"}
             echo
             git diff "$BASE" HEAD -- . ':(exclude)Tests' ':(exclude)*.png'
-        } | codex exec --ephemeral -o "$NOTES" \
-            "Write release notes for Meeting Countdown $VERSION, a macOS menu bar app that counts \
-down to your next meeting. Below are the commit messages and diff since ${LATEST:-the start}. \
-Write for end users, not developers: a few short Markdown bullets about what they will notice \
-(new features, changes, fixes), most important first. Leave out refactors, tests, build and \
-release tooling. No heading, no intro or closing sentence. Output only the notes." \
-            >/dev/null || echo "warning: codex failed; starting from the commit list" >&2
+        } | codex exec --ephemeral -o "$NOTES" "$PROMPT" \
+            >/dev/null 2>"$NOTES.log" \
+            || echo "warning: codex failed (see $NOTES.log); starting from the commit list" >&2
     else
         echo "warning: codex not found (brew bundle; codex login); starting from the commit list" >&2
     fi
     [ -s "$NOTES" ] || git log --no-merges --format='- %s' ${LATEST:+"$LATEST..HEAD"} >"$NOTES"
 fi
-${VISUAL:-${EDITOR:-vi}} "$NOTES"
+# `code` is often only a shell alias, which scripts don't see, so fall back to the app's CLI.
+CODE="$(command -v code || echo "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code")"
+if [ "${TERM_PROGRAM:-}" = vscode ] && [ -x "$CODE" ]; then
+    # `code --wait` returns when the tab closes: Apply saves and closes it, Cancel empties it
+    # first. Closing the tab by hand also applies, like a commit message.
+    EXTENSION_VERSION="$(plutil -extract version raw "$ROOT/tools/release-notes-vscode/package.json")"
+    "$CODE" --list-extensions --show-versions 2>/dev/null \
+        | grep -qx "rtortora.release-notes@$EXTENSION_VERSION" \
+        || scripts/install-vscode-extension.sh >/dev/null 2>&1 \
+        || echo "warning: couldn't install the release notes extension; close the tab to apply" >&2
+    echo "Editing release notes in VS Code: Apply (✓) to continue, Cancel (✕) to stop."
+    "$CODE" --wait "$NOTES"
+    CONFIRMED=1
+else
+    ${VISUAL:-${EDITOR:-vi}} "$NOTES"
+    CONFIRMED=
+fi
 if [ ! -s "$NOTES" ]; then
-    echo "error: release notes are empty" >&2
+    echo "Release notes are empty; stopping." >&2
     exit 1
 fi
 echo "--- Release notes ---"
 cat "$NOTES"
+[ -z "$(tail -c 1 "$NOTES")" ] || echo
 echo "---"
-read -r -p "Use these notes? [y/N] " REPLY
-[[ "$REPLY" =~ ^[Yy] ]] || exit 1
+[ -z "$NOTES_ONLY" ] || exit 0
+if [ -z "$CONFIRMED" ]; then
+    read -r -p "Use these notes? [y/N] " REPLY
+    [[ "$REPLY" =~ ^[Yy] ]] || exit 1
+fi
 
 swift test
 ARCHS="arm64 x86_64" VERSION="$VERSION" SIGN_IDENTITY=- scripts/build-app.sh release

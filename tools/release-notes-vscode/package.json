@@ -1,0 +1,27 @@
+{
+  "name": "release-notes",
+  "publisher": "rtortora",
+  "displayName": "Meeting Countdown Release Notes",
+  "description": "Apply and Cancel buttons for the release notes draft that scripts/release.sh opens.",
+  "version": "0.0.1",
+  "license": "MIT",
+  "repository": "https://github.com/rtortora/meeting-countdown",
+  "engines": { "vscode": "^1.90.0" },
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      { "command": "releaseNotes.apply", "title": "Apply Release Notes", "icon": "$(check)" },
+      { "command": "releaseNotes.cancel", "title": "Cancel Release", "icon": "$(close)" }
+    ],
+    "menus": {
+      "editor/title": [
+        { "command": "releaseNotes.apply", "when": "resourceFilename =~ /^release-notes-v[0-9.]+\\.md$/", "group": "navigation@1" },
+        { "command": "releaseNotes.cancel", "when": "resourceFilename =~ /^release-notes-v[0-9.]+\\.md$/", "group": "navigation@2" }
+      ],
+      "commandPalette": [
+        { "command": "releaseNotes.apply", "when": "false" },
+        { "command": "releaseNotes.cancel", "when": "false" }
+      ]
+    }
+  }
+}
