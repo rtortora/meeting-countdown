@@ -2,7 +2,8 @@
 # Builds MeetingCountdown and wraps it in a .app bundle (needed for the Info.plist
 # calendar usage string and LSUIElement). Usage: scripts/build-app.sh [debug|release]
 # Optional env: ARCHS="arm64 x86_64" for a universal binary; VERSION=1.2.3 to stamp
-# CFBundleShortVersionString (release builds set both).
+# CFBundleShortVersionString (release builds set both). Without VERSION, local builds are
+# stamped from `git describe` (e.g. 0.1.1-3-g96e92c9), so Settings shows what's running.
 set -euo pipefail
 
 CONFIG="${1:-release}"
@@ -21,7 +22,8 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_DIR/MeetingCountdown" "$APP/Contents/MacOS/MeetingCountdown"
 cp "$ROOT/Resources/Info.plist" "$APP/Contents/Info.plist"
-if [ -n "${VERSION:-}" ]; then
+VERSION="${VERSION:-$(git describe --tags --dirty 2>/dev/null | sed 's/^v//')}"
+if [ -n "$VERSION" ]; then
     plutil -replace CFBundleShortVersionString -string "$VERSION" "$APP/Contents/Info.plist"
 fi
 

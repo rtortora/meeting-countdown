@@ -54,6 +54,12 @@ private struct SettingsView: View {
                 }
             }
             permissionsSection
+            Section {
+                LabeledContent("Version") {
+                    Text(Self.version)
+                        .textSelection(.enabled)
+                }
+            }
         }
         .formStyle(.grouped)
         .frame(minWidth: 440, minHeight: 320)
@@ -85,6 +91,9 @@ private struct SettingsView: View {
             Text("Permissions")
         }
     }
+
+    /// Stamped by `build-app.sh`: the release number, or `git describe` output for local builds.
+    private static let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown"
 
     private var allowedLabel: some View {
         Label("Allowed", systemImage: "checkmark.circle.fill")

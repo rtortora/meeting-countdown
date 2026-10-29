@@ -78,6 +78,11 @@ final class AppController: NSObject, NSMenuDelegate {
                 self?.statusItem.button?.performClick(nil)
             }
         }
+        if ProcessInfo.processInfo.arguments.contains("--show-settings") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+                self?.settingsWindow.show()
+            }
+        }
     }
 
     // MARK: - State
