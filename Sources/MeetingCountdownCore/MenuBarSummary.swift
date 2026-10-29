@@ -10,14 +10,33 @@ public enum MenuBarSummary {
         return "\(shortDuration(seconds: seconds)) till \(truncate(meeting.title))"
     }
 
-    /// The badge beside a meeting in the menu: "in 12 min" before it starts, "12 min ago" after,
-    /// "now" in its first minute.
-    public static func badge(for meeting: Meeting, now: Date) -> String {
+    /// The line under a meeting in the menu: "In 23 min • 3:30 PM • Work". A meeting on another day
+    /// names the day: "In 18.5 hrs • Tomorrow 9:00 AM • Work". It always starts with `countdown`.
+    public static func menuSubtitle(
+        for meeting: Meeting, now: Date, calendarName: String?, calendar: Calendar = .current,
+        locale: Locale = .current
+    ) -> String {
+        let format = Date.FormatStyle(locale: locale, calendar: calendar, timeZone: calendar.timeZone)
+        var start = meeting.startDate.formatted(format.hour().minute())
+        if !calendar.isDate(meeting.startDate, inSameDayAs: now) {
+            let tomorrow = calendar.date(byAdding: .day, value: 1, to: now) ?? now
+            let day =
+                calendar.isDate(meeting.startDate, inSameDayAs: tomorrow)
+                ? "Tomorrow" : meeting.startDate.formatted(format.weekday(.abbreviated).month(.abbreviated).day())
+            start = "\(day) \(start)"
+        }
+        return [countdown(for: meeting, now: now), start, calendarName ?? ""]
+            .filter { !$0.isEmpty }
+            .joined(separator: " • ")
+    }
+
+    /// "In 12 min" before a meeting starts, "12 min ago" after, "Now" in its first minute.
+    public static func countdown(for meeting: Meeting, now: Date) -> String {
         guard meeting.startDate <= now else {
-            return "in \(shortDuration(seconds: Countdown.remainingSeconds(until: meeting.startDate, now: now)))"
+            return "In \(shortDuration(seconds: Countdown.remainingSeconds(until: meeting.startDate, now: now)))"
         }
         let elapsed = Int(now.timeIntervalSince(meeting.startDate))
-        return elapsed < 60 ? "now" : "\(shortDuration(seconds: elapsed)) ago"
+        return elapsed < 60 ? "Now" : "\(shortDuration(seconds: elapsed)) ago"
     }
 
     /// Picks the coarsest unit that still reads naturally: seconds under a minute,

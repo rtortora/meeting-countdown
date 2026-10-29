@@ -138,12 +138,12 @@ final class CalendarService {
         return MeetingSelector.schedule(from: candidates, now: now)
     }
 
-    func color(ofCalendar id: String) -> CGColor? {
+    func title(ofCalendar id: String) -> String? {
         if demo != nil {
-            return DemoCalendar.calendar(withID: id).map(Self.color(of:))
+            return DemoCalendar.calendar(withID: id)?.title
         }
         guard access == .granted else { return nil }
-        return store.calendar(withIdentifier: id)?.cgColor
+        return store.calendar(withIdentifier: id)?.title
     }
 
     private static func demoAccounts() -> [CalendarAccount] {

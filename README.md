@@ -27,4 +27,4 @@ macOS 14 (Sonoma) or later.
 
 ## AI Disclosure
 
-This was entirely vibe-coded with Claude. The app icon was generated with ChatGPT.
+Meeting Countdown was designed by me, a human, but entirely vibe-coded with Claude. The app icon was generated with ChatGPT.

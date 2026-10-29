@@ -122,13 +122,32 @@ final class MenuBarSummaryTests: XCTestCase {
         XCTAssertEqual(MenuBarSummary.text(for: meeting, now: now), "3.1 hrs till Design Review")
     }
 
-    func testBadge() {
+    func testCountdown() {
         let now = Date(timeIntervalSinceReferenceDate: 1_000_000)
-        XCTAssertEqual(MenuBarSummary.badge(for: Meeting(id: "a", title: "x", startDate: now + 720), now: now), "in 12 min")
-        XCTAssertEqual(MenuBarSummary.badge(for: Meeting(id: "a", title: "x", startDate: now + 11_400), now: now), "in 3.1 hrs")
-        XCTAssertEqual(MenuBarSummary.badge(for: Meeting(id: "a", title: "x", startDate: now), now: now), "now")
-        XCTAssertEqual(MenuBarSummary.badge(for: Meeting(id: "a", title: "x", startDate: now - 59), now: now), "now")
-        XCTAssertEqual(MenuBarSummary.badge(for: Meeting(id: "a", title: "x", startDate: now - 720), now: now), "12 min ago")
+        XCTAssertEqual(MenuBarSummary.countdown(for: Meeting(id: "a", title: "x", startDate: now + 720), now: now), "In 12 min")
+        XCTAssertEqual(MenuBarSummary.countdown(for: Meeting(id: "a", title: "x", startDate: now + 11_400), now: now), "In 3.1 hrs")
+        XCTAssertEqual(MenuBarSummary.countdown(for: Meeting(id: "a", title: "x", startDate: now), now: now), "Now")
+        XCTAssertEqual(MenuBarSummary.countdown(for: Meeting(id: "a", title: "x", startDate: now - 59), now: now), "Now")
+        XCTAssertEqual(MenuBarSummary.countdown(for: Meeting(id: "a", title: "x", startDate: now - 720), now: now), "12 min ago")
+    }
+
+    func testMenuSubtitle() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        let locale = Locale(identifier: "en_GB")
+        // Wednesday 29 October 2025, 15:07 UTC.
+        let now = calendar.date(from: DateComponents(year: 2025, month: 10, day: 29, hour: 15, minute: 7))!
+        func subtitle(_ offset: TimeInterval, _ calendarName: String? = "Work") -> String {
+            MenuBarSummary.menuSubtitle(
+                for: Meeting(id: "a", title: "x", startDate: now + offset), now: now,
+                calendarName: calendarName, calendar: calendar, locale: locale)
+        }
+        XCTAssertEqual(subtitle(23 * 60), "In 23 min • 15:30 • Work")
+        XCTAssertEqual(subtitle(-7 * 60), "7 min ago • 15:00 • Work")
+        XCTAssertEqual(subtitle(23 * 60, nil), "In 23 min • 15:30")
+        XCTAssertEqual(subtitle(23 * 60, ""), "In 23 min • 15:30")
+        XCTAssertEqual(subtitle(18 * 3600 + 23 * 60), "In 18.3 hrs • Tomorrow 09:30 • Work")
+        XCTAssertEqual(subtitle(42 * 3600 + 23 * 60), "In 42.3 hrs • Fri 31 Oct 09:30 • Work")
     }
 }
 
@@ -358,7 +377,7 @@ final class DemoCalendarTests: XCTestCase {
         XCTAssertEqual(schedule.recent.map(\.title), ["Team Standup"])
         XCTAssertEqual(schedule.next?.title, "Design Review")
         XCTAssertEqual(schedule.next?.videoLink?.provider, .googleMeet)
-        XCTAssertEqual(schedule.later.map(\.title), ["Acme Quarterly Check-in", "Lunch with Sam"])
+        XCTAssertEqual(schedule.later.map(\.title), ["Acme Quarterly Check-in", "Meet with Sam"])
         XCTAssertTrue(Countdown.isOverlayVisible(start: schedule.next!.startDate, now: now))
     }
 

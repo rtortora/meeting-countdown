@@ -8,7 +8,7 @@ public struct Meeting: Equatable, Sendable {
     public let videoLink: VideoLink?
     /// The calendar account (EventKit source) the event came from; picks how its call opens.
     public let accountID: String?
-    /// The EventKit calendar the event is on; the menu shows its color.
+    /// The EventKit calendar the event is on; the menu shows its name.
     public let calendarID: String?
     /// EventKit's `calendarItemIdentifier`, for showing the event in Calendar.app.
     public let calendarItemID: String?

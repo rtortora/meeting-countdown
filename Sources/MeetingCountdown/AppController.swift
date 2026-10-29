@@ -28,7 +28,7 @@ final class AppController: NSObject, NSMenuDelegate {
     private var isMenuOpen = false
     private var menuNeedsRebuild = false
     /// The meeting rows, kept so their "in 12 min" badges can count down while the menu is open.
-    private var meetingItems: [(item: NSMenuItem, meeting: Meeting)] = []
+    private var meetingRows: [MeetingMenuRowView] = []
     private var tickTimer: Timer?
     private var wakeObserver: NSObjectProtocol?
 
@@ -106,7 +106,7 @@ final class AppController: NSObject, NSMenuDelegate {
             return
         }
         updateStatusTitle(now: now)
-        updateMeetingBadges(now: now)
+        for row in meetingRows { row.update(now: now) }
         updateOverlay(now: now)
     }
 
@@ -117,15 +117,6 @@ final class AppController: NSObject, NSMenuDelegate {
             button.title = title
         }
         button.imagePosition = title.isEmpty ? .imageOnly : .imageLeading
-    }
-
-    private func updateMeetingBadges(now: Date) {
-        for (item, meeting) in meetingItems {
-            let text = MenuBarSummary.badge(for: meeting, now: now)
-            if item.badge?.stringValue != text {
-                item.badge = NSMenuItemBadge(string: text)
-            }
-        }
     }
 
     private func updateOverlay(now: Date) {
@@ -169,18 +160,17 @@ final class AppController: NSObject, NSMenuDelegate {
         }
         menuNeedsRebuild = false
         menu.removeAllItems()
-        meetingItems = []
+        meetingRows = []
 
         switch calendar.access {
         case .granted:
-            addMeetingSection("Started", schedule.recent)
+            addMeetingSection(.sectionHeader(title: "Started"), schedule.recent)
             if let next = nextMeeting {
-                addMeetingSection("Next Meeting", [next])
+                addMeetingSection(MeetingMenuRowView.header("Next Meeting", bold: true), [next])
             } else {
                 menu.addItem(disabledItem("No upcoming meetings"))
             }
-            addMeetingSection("Coming Up", schedule.later)
-            updateMeetingBadges(now: Date())
+            addMeetingSection(MeetingMenuRowView.header("Coming Up", bold: false), schedule.later)
         case .notDetermined:
             menu.addItem(disabledItem("Waiting for calendar access…"))
         case .denied:
@@ -202,52 +192,41 @@ final class AppController: NSObject, NSMenuDelegate {
         menu.addItem(quit)
     }
 
-    /// A section header, then each meeting's row with a Join item under it when the invite has a call link.
-    /// Only the next meeting's Join gets ⌘J.
-    private func addMeetingSection(_ title: String, _ meetings: [Meeting]) {
+    /// A section header, then a row per meeting (see `MeetingMenuRowView`), with a Join button
+    /// when the invite has a call link.
+    private func addMeetingSection(_ header: NSMenuItem, _ meetings: [Meeting]) {
         guard !meetings.isEmpty else { return }
-        menu.addItem(.sectionHeader(title: title))
+        menu.addItem(header)
         for meeting in meetings {
-            let item = makeMeetingItem(meeting)
-            meetingItems.append((item, meeting))
-            menu.addItem(item)
-            if let link = meeting.videoLink {
-                let join = NSMenuItem(
-                    title: Self.joinTitle(link), action: #selector(joinFromMenu(_:)),
-                    keyEquivalent: meeting == nextMeeting ? "j" : "")
+            menu.addItem(makeMeetingItem(meeting))
+            // ⌘J joins the next meeting. A row with a custom view can't show or own a key equivalent,
+            // so a hidden item carries it.
+            if meeting == nextMeeting, let link = meeting.videoLink {
+                let join = NSMenuItem(title: Self.joinTitle(link), action: #selector(joinFromMenu(_:)), keyEquivalent: "j")
                 join.target = self
                 join.representedObject = meeting
-                join.image = NSImage(systemSymbolName: "video.fill", accessibilityDescription: nil)
+                join.isHidden = true
+                join.allowsKeyEquivalentWhenHidden = true
                 menu.addItem(join)
             }
         }
     }
 
-    /// The meeting as one row: calendar-color dot, title, start time below it, and a countdown badge.
-    /// Clicking it shows the event in Calendar. It has to do something: a disabled row draws gray,
+    /// Clicking the row shows the event in Calendar. It has to do something: a disabled row draws gray,
     /// even with an explicit text color.
     private func makeMeetingItem(_ meeting: Meeting) -> NSMenuItem {
         let item = NSMenuItem(title: meeting.title, action: #selector(showInCalendar(_:)), keyEquivalent: "")
         item.target = self
         item.representedObject = meeting
-        let start = Self.formatStart(meeting.startDate)
-        if #available(macOS 14.4, *) {
-            item.subtitle = start
-        } else {
-            item.title += " · \(start)"
-        }
-        let color = meeting.calendarID.flatMap(calendar.color(ofCalendar:)).flatMap(NSColor.init(cgColor:))
-        item.image = Self.dot(color ?? .systemGray)
+        let row = MeetingMenuRowView(
+            meeting: meeting,
+            calendarName: meeting.calendarID.flatMap(calendar.title(ofCalendar:)),
+            isNext: meeting == nextMeeting,
+            joinHelp: meeting.videoLink.map { "\(Self.joinTitle($0))\(meeting == nextMeeting ? " (⌘J)" : "")" },
+            onJoin: { [weak self] in self?.join(meeting) })
+        item.view = row
+        meetingRows.append(row)
         return item
-    }
-
-    private static func dot(_ color: NSColor) -> NSImage {
-        let size = NSSize(width: 10, height: 10)
-        return NSImage(size: size, flipped: false) { rect in
-            color.setFill()
-            NSBezierPath(ovalIn: rect.insetBy(dx: 0.5, dy: 0.5)).fill()
-            return true
-        }
     }
 
     private func disabledItem(_ title: String) -> NSMenuItem {
@@ -285,14 +264,5 @@ final class AppController: NSObject, NSMenuDelegate {
 
     @objc private func openPrivacySettings() {
         CalendarService.openPrivacySettings()
-    }
-
-    private static func formatStart(_ date: Date) -> String {
-        let time = date.formatted(date: .omitted, time: .shortened)
-        let cal = Calendar.current
-        if cal.isDateInToday(date) { return "Today at \(time)" }
-        if cal.isDateInTomorrow(date) { return "Tomorrow at \(time)" }
-        return
-            "\(date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())) at \(time)"
     }
 }

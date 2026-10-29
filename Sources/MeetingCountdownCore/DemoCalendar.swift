@@ -25,13 +25,16 @@ public struct DemoCalendar: Sendable {
 
     public static let calendars: [CalendarSpec] = [
         CalendarSpec(
-            id: "demo-work", title: "Work", accountID: "demo-google", accountTitle: "alex@example.com",
+            id: "demo-work", title: "Work", accountID: "demo-google",
+            accountTitle: "alex@example.com",
             red: 0.25, green: 0.52, blue: 0.96),
         CalendarSpec(
-            id: "demo-clients", title: "Clients", accountID: "demo-google", accountTitle: "alex@example.com",
+            id: "demo-clients", title: "Clients", accountID: "demo-google",
+            accountTitle: "alex@example.com",
             red: 0.98, green: 0.62, blue: 0.13),
         CalendarSpec(
-            id: "demo-personal", title: "Personal", accountID: "demo-icloud", accountTitle: "iCloud",
+            id: "demo-personal", title: "Personal", accountID: "demo-icloud",
+            accountTitle: "iCloud",
             red: 0.30, green: 0.78, blue: 0.40),
     ]
 
@@ -56,21 +59,30 @@ public struct DemoCalendar: Sendable {
                     """),
             event(
                 "acme", "Acme Quarterly Check-in", minutes: 35, calendar: "demo-clients",
-                location: "https://teams.microsoft.com/l/meetup-join/19%3ameeting_demo%40thread.v2/0"),
-            event("lunch", "Lunch with Sam", minutes: 70, calendar: "demo-personal", location: "Blue Bottle Coffee"),
+                location:
+                    "https://teams.microsoft.com/l/meetup-join/19%3ameeting_demo%40thread.v2/0"),
+            event(
+                "sam", "Meet with Sam", minutes: 70, calendar: "demo-personal",
+                location: "Blue Bottle Coffee"),
             event(
                 "planning", "Sprint Planning", minutes: 150, calendar: "demo-work",
                 notes: "https://meet.google.com/xyz-uvwx-rst"),
             // Skipped: not meetings the user is going to.
-            event("offsite", "Team Offsite Prep", minutes: -60, calendar: "demo-work", isAllDay: true),
-            event("sync", "Optional Architecture Sync", minutes: 15, calendar: "demo-work", isDeclined: true),
-            event("retro", "Retro (moved to Friday)", minutes: 20, calendar: "demo-work", isCanceled: true),
+            event(
+                "offsite", "Team Offsite Prep", minutes: -60, calendar: "demo-work", isAllDay: true),
+            event(
+                "sync", "Optional Architecture Sync", minutes: 15, calendar: "demo-work",
+                isDeclined: true),
+            event(
+                "retro", "Retro (moved to Friday)", minutes: 20, calendar: "demo-work",
+                isCanceled: true),
         ]
     }
 
     private func event(
         _ id: String, _ title: String, minutes: Double, calendar: String, location: String? = nil,
-        notes: String? = nil, isAllDay: Bool = false, isDeclined: Bool = false, isCanceled: Bool = false
+        notes: String? = nil, isAllDay: Bool = false, isDeclined: Bool = false,
+        isCanceled: Bool = false
     ) -> CandidateEvent {
         CandidateEvent(
             id: "demo-\(id)",

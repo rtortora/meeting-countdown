@@ -55,6 +55,7 @@ This file records decisions and things learned the hard way that aren't obvious 
 
 ## Menu
 
-- A disabled `NSMenuItem` draws gray even with an explicit `foregroundColor` in its `attributedTitle` (tried Oct 2026). So the next-meeting row is enabled: clicking it shows the event in Calendar.app via `ical://ekevent/<calendarItemIdentifier>?method=show&options=more`, which Apple doesn't document.
-- The menu lists meetings under "Started" (last 30 min), "Next Meeting" (shown however far off) and "Coming Up" (next 90 min), each with its own Join item; only the next meeting's has ⌘J. Items carry their `Meeting` in `representedObject`.
-- The rows' badges ("in 12 min", "5 min ago") are updated in place on each tick, because rebuilding the menu waits until it closes.
+- The menu lists meetings under "Started" (last 30 min), "Next Meeting" (shown however far off) and "Coming Up" (next 90 min). Clicking a row shows the event in Calendar.app via `ical://ekevent/<calendarItemIdentifier>?method=show&options=more`, which Apple doesn't document. Items carry their `Meeting` in `representedObject`.
+- Each meeting row is a custom view (`MeetingMenuRowView`): a standard item can't hold the Join button on the right. The view draws its own highlight and runs the item's action on mouse-up. A row with a view can't show or own a key equivalent, so ⌘J (join the next meeting) lives on a hidden item with `allowsKeyEquivalentWhenHidden`.
+- The rows' second line ("In 12 min • 3:30 PM • Work") is updated in place on each tick, because rebuilding the menu waits until it closes.
+- Section headers and disabled items ignore the font and color in `attributedTitle`; a disabled item draws gray regardless (tried Oct 2026). The darker "Next Meeting" (bold) and "Coming Up" headers are views (`MeetingMenuRowView.header`), with insets matched to the standard header by screenshot.
