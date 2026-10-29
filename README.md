@@ -19,7 +19,7 @@ Click "join" to join a video chat link if there is one.
 * It works with the calendars your Mac already has, so there's nothing to sign in to or set up, just grant calendar access.
 * You can configure video chat link preferences per-calendar and have it prefer a specific Chrome profile or the Google Meet app.
 * It can open at login (Settings → Open at login).
-* The Menu Bar provides a snapshot into your meetings from 30 mins ago to 1.5 hrs into the future. <img src="docs/images/menu.png" alt="The menu listing a meeting that started 8 minutes ago, the next meeting in 4 minutes, and two more coming up, each with a Join item" width="340">
+* The Menu Bar provides a snapshot into your meetings from 30 mins ago to 1.5 hrs into the future. <img src="docs/images/menu.png" alt="The menu listing a meeting that started 8 minutes ago, the next meeting in 4 minutes, and two more coming up, with Join buttons on the meetings that have a call" width="307">
 
 ## Requirements
 
