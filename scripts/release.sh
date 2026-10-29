@@ -8,6 +8,8 @@
 # meeting-countdown; create it once with `xcrun notarytool store-credentials meeting-countdown`).
 # Without a Developer ID identity the app is ad-hoc signed, and Gatekeeper blocks it until
 # the user allows it in Privacy & Security.
+# Release notes are drafted by the Codex CLI (`brew bundle` installs it from the Brewfile;
+# then `codex login` with ChatGPT) and opened in $VISUAL/$EDITOR for editing; set EDITOR="code --wait" for VS Code.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -49,6 +51,41 @@ fi
 read -r -p "Release $TAG (latest: ${LATEST:-none})? [y/N] " REPLY
 [[ "$REPLY" =~ ^[Yy] ]] || exit 1
 
+# Release notes: Codex (signed in with ChatGPT) drafts them from the changes since the last
+# tag, then they open in $VISUAL/$EDITOR for review. A draft left over from an earlier run
+# that failed later on is reused, edits included.
+NOTES="$ROOT/build/release-notes-$TAG.md"
+mkdir -p "$ROOT/build"
+if [ ! -s "$NOTES" ]; then
+    BASE="${LATEST:-$(git hash-object -t tree /dev/null)}"
+    if command -v codex >/dev/null; then
+        {
+            git log --no-merges --format='- %s%n%b' ${LATEST:+"$LATEST..HEAD"}
+            echo
+            git diff "$BASE" HEAD -- . ':(exclude)Tests' ':(exclude)*.png'
+        } | codex exec --ephemeral -o "$NOTES" \
+            "Write release notes for Meeting Countdown $VERSION, a macOS menu bar app that counts \
+down to your next meeting. Below are the commit messages and diff since ${LATEST:-the start}. \
+Write for end users, not developers: a few short Markdown bullets about what they will notice \
+(new features, changes, fixes), most important first. Leave out refactors, tests, build and \
+release tooling. No heading, no intro or closing sentence. Output only the notes." \
+            >/dev/null || echo "warning: codex failed; starting from the commit list" >&2
+    else
+        echo "warning: codex not found (brew bundle; codex login); starting from the commit list" >&2
+    fi
+    [ -s "$NOTES" ] || git log --no-merges --format='- %s' ${LATEST:+"$LATEST..HEAD"} >"$NOTES"
+fi
+${VISUAL:-${EDITOR:-vi}} "$NOTES"
+if [ ! -s "$NOTES" ]; then
+    echo "error: release notes are empty" >&2
+    exit 1
+fi
+echo "--- Release notes ---"
+cat "$NOTES"
+echo "---"
+read -r -p "Use these notes? [y/N] " REPLY
+[[ "$REPLY" =~ ^[Yy] ]] || exit 1
+
 swift test
 ARCHS="arm64 x86_64" VERSION="$VERSION" SIGN_IDENTITY=- scripts/build-app.sh release
 
@@ -84,5 +121,6 @@ fi
 
 git tag "$TAG"
 git push origin "$TAG"
-gh release create "$TAG" "$DMG" --title "Meeting Countdown $VERSION" --generate-notes
+gh release create "$TAG" "$DMG" --title "Meeting Countdown $VERSION" --notes-file "$NOTES"
+rm -f "$NOTES"
 echo "Released $TAG"

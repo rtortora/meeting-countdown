@@ -14,6 +14,7 @@ This file records decisions and things learned the hard way that aren't obvious 
 ## Releases
 
 - `scripts/release.sh [--minor|--major]` publishes a notarized `.dmg` to GitHub Releases from this machine (no CI: the Developer ID cert and notarytool profile live in the local keychain). The version comes from the newest `vX.Y.Z` tag; local builds are stamped with `git describe`.
+- Release notes: `codex exec` (Codex CLI from the `Brewfile`, signed in with ChatGPT, read-only sandbox by default) drafts end-user bullets from the commit log and the diff since the last tag (tests and images excluded) into `build/release-notes-<tag>.md`; the script opens it in `$VISUAL`/`$EDITOR` and asks before the build. A draft left over from a failed run is reused. Without codex it starts from the commit subjects.
 - "Check for Updates" in Settings calls GitHub's `releases/latest` API without credentials, so it answers 404 ("No releases found") while the repo is private.
 
 ## Video call links (Join)
