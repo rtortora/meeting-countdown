@@ -1,6 +1,7 @@
 import AppKit
 import MeetingCountdownCore
 import Observation
+import ServiceManagement
 import SwiftUI
 
 /// What the Settings window lists, read from the system each time it opens and when calendars change.
@@ -15,6 +16,9 @@ final class SettingsOptions {
     var chromeProfileList: GoogleChrome.ProfileList?
     var chromeProfiles: [ChromeProfile] { chromeProfileList?.profiles ?? [] }
     var isMeetAppInstalled = false
+    /// Owned by macOS (System Settings → General → Login Items), so it's read back rather than saved here.
+    var launchAtLogin: SMAppService.Status = .notRegistered
+    var launchAtLoginError: String?
 }
 
 private struct SettingsView: View {
@@ -25,28 +29,27 @@ private struct SettingsView: View {
     let refresh: () -> Void
     let openDataAccessSettings: () -> Void
     let loadChromeProfiles: () -> Void
+    let setLaunchAtLogin: (Bool) -> Void
 
     /// The account whose Chrome profile is being picked in the sheet.
     @State private var choosingProfileFor: CalendarAccount?
 
     var body: some View {
         Form {
+            generalSection
+            updatesSection
             switch options.access {
             case .granted:
-                Section {
-                    HStack(alignment: .top) {
-                        Text(options.accounts.isEmpty
-                            ? "No calendars found."
-                            : "Choose the calendars to count down to, and where each account's video calls open. Zoom and Teams calls always open in their desktop app when it's installed.")
-                            .font(.callout)
+                if options.accounts.isEmpty {
+                    Section {
+                        Text("No calendars found.")
                             .foregroundStyle(.secondary)
-                        Spacer()
-                        Button("Refresh", systemImage: "arrow.clockwise", action: refresh)
-                            .help("Check for added or removed calendars and accounts")
+                    } header: {
+                        calendarsHeader
                     }
                 }
                 ForEach(options.accounts) { account in
-                    accountSection(account)
+                    accountSection(account, isFirst: account.id == options.accounts.first?.id)
                 }
             case .notDetermined, .denied:
                 Section("Calendars") {
@@ -55,7 +58,6 @@ private struct SettingsView: View {
                 }
             }
             permissionsSection
-            updatesSection
         }
         .formStyle(.grouped)
         .frame(minWidth: 440, minHeight: 320)
@@ -71,6 +73,27 @@ private struct SettingsView: View {
                     choosingProfileFor = nil
                 },
                 onCancel: { choosingProfileFor = nil })
+        }
+    }
+
+    private var generalSection: some View {
+        Section {
+            Toggle("Open at login", isOn: Binding(
+                get: { options.launchAtLogin == .enabled || options.launchAtLogin == .requiresApproval },
+                set: { setLaunchAtLogin($0) }))
+        } footer: {
+            if let error = options.launchAtLoginError {
+                Text(error)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            } else if options.launchAtLogin == .requiresApproval {
+                HStack {
+                    Text("Allow Meeting Countdown in Login Items to finish turning this on.")
+                    Button("Open Login Items Settings…") { SMAppService.openSystemSettingsLoginItems() }
+                }
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -91,7 +114,7 @@ private struct SettingsView: View {
     /// The result of a check sits above the button in the same row, so it shows without scrolling.
     private var updatesSection: some View {
         Section {
-            LabeledContent("Version") {
+            LabeledContent("App Version") {
                 VStack(alignment: .trailing, spacing: 6) {
                     updateStatus
                         .font(.callout)
@@ -135,7 +158,19 @@ private struct SettingsView: View {
             .foregroundStyle(.green)
     }
 
-    private func accountSection(_ account: CalendarAccount) -> some View {
+    /// Heads the account sections. It sits in the first section's header: a section of its own would draw a box.
+    private var calendarsHeader: some View {
+        HStack {
+            Text("Per-Calendar Settings")
+                .font(.title3.bold())
+                .foregroundStyle(.primary)
+            Spacer()
+            Button("Refresh Calendars", systemImage: "arrow.clockwise", action: refresh)
+                .help("Check for added or removed calendars and accounts")
+        }
+    }
+
+    private func accountSection(_ account: CalendarAccount, isFirst: Bool) -> some View {
         Section {
             Picker("Video calls", selection: linkMode(for: account)) {
                 Text("Default").tag(LinkMode.defaultBrowser)
@@ -162,7 +197,10 @@ private struct SettingsView: View {
                 }
             }
         } header: {
-            Text(account.title)
+            VStack(alignment: .leading, spacing: 16) {
+                if isFirst { calendarsHeader }
+                Text(account.title)
+            }
         } footer: {
             if let warning = warning(for: account) {
                 Text(warning)
@@ -371,6 +409,22 @@ final class SettingsWindowController {
             options.chromeProfileList = GoogleChrome.profileList()
         }
         options.isMeetAppInstalled = InstalledWebApp.find(forHost: "meet.google.com") != nil
+        options.launchAtLogin = SMAppService.mainApp.status
+    }
+
+    private func setLaunchAtLogin(_ enabled: Bool) {
+        do {
+            if enabled {
+                try SMAppService.mainApp.register()
+            } else {
+                try SMAppService.mainApp.unregister()
+            }
+            options.launchAtLoginError = nil
+        } catch {
+            NSLog("Launch at login \(enabled ? "register" : "unregister") failed: \(error)")
+            options.launchAtLoginError = "Couldn't change this: \(error.localizedDescription)"
+        }
+        options.launchAtLogin = SMAppService.mainApp.status
     }
 
     private func makeWindow() -> NSWindow {
@@ -390,7 +444,8 @@ final class SettingsWindowController {
                     NSLog("Chrome profile list: \(list.isFound ? "\(list.profiles.count) profiles" : "\(list)")")
                 }
                 options.chromeProfileList = list
-            })
+            },
+            setLaunchAtLogin: { [weak self] in self?.setLaunchAtLogin($0) })
         let window = NSWindow(contentViewController: NSHostingController(rootView: view))
         window.title = "Meeting Countdown Settings"
         window.styleMask = [.titled, .closable, .resizable]
