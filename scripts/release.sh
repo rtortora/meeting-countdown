@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Builds, tests and publishes a GitHub Release (a .dmg) from this machine.
-# Usage: scripts/release.sh <version>    e.g. scripts/release.sh 0.2.0
+# Usage: scripts/release.sh [--minor | --major | <version>]
+# Without arguments, bumps the patch number of the newest vX.Y.Z tag (0.1.0 -> 0.1.1);
+# --minor and --major bump those instead (-> 0.2.0, -> 1.0.0). Asks before publishing.
 # Signs with the keychain's "Developer ID Application" identity (override with DEVELOPER_ID)
 # and notarizes with the notarytool keychain profile NOTARY_PROFILE (default
 # meeting-countdown; create it once with `xcrun notarytool store-credentials meeting-countdown`).
@@ -8,16 +10,27 @@
 # the user allows it in Privacy & Security.
 set -euo pipefail
 
-VERSION="${1:?usage: release.sh <version>}"
-TAG="v$VERSION"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
+
+git fetch -q --tags origin
+LATEST="$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -1)"
+IFS=. read -r MAJOR MINOR PATCH <<<"${LATEST#v}"
+MAJOR="${MAJOR:-0}" MINOR="${MINOR:-0}" PATCH="${PATCH:-0}"
+case "${1:-}" in
+    "") VERSION="$MAJOR.$MINOR.$((PATCH + 1))" ;;
+    --minor) VERSION="$MAJOR.$((MINOR + 1)).0" ;;
+    --major) VERSION="$((MAJOR + 1)).0.0" ;;
+    [0-9]*.[0-9]*.[0-9]*) VERSION="$1" ;;
+    *) echo "usage: release.sh [--minor | --major | <version>]" >&2; exit 1 ;;
+esac
+TAG="v$VERSION"
 APP="$ROOT/build/MeetingCountdown.app"
 ZIP="$ROOT/build/MeetingCountdown-notarize.zip"
 DMG="$ROOT/build/MeetingCountdown-$VERSION.dmg"
 STAGING="$ROOT/build/dmg"
 NOTARY_PROFILE="${NOTARY_PROFILE:-meeting-countdown}"
 
-cd "$ROOT"
 if [ -n "$(git status --porcelain)" ]; then
     echo "error: working tree has uncommitted changes" >&2
     exit 1
@@ -32,6 +45,9 @@ DEVELOPER_ID="${DEVELOPER_ID:-$(security find-identity -v -p codesigning \
 if [ -z "$DEVELOPER_ID" ]; then
     echo "warning: no Developer ID Application identity; the release will be ad-hoc signed" >&2
 fi
+
+read -r -p "Release $TAG (latest: ${LATEST:-none})? [y/N] " REPLY
+[[ "$REPLY" =~ ^[Yy] ]] || exit 1
 
 swift test
 ARCHS="arm64 x86_64" VERSION="$VERSION" SIGN_IDENTITY=- scripts/build-app.sh release
