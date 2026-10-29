@@ -26,7 +26,7 @@ if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
 fi
 
 DEVELOPER_ID="${DEVELOPER_ID:-$(security find-identity -v -p codesigning \
-    | grep 'Developer ID Application' | head -1 | awk '{print $2}')}"
+    | { grep 'Developer ID Application' || true; } | head -1 | awk '{print $2}')}"
 if [ -z "$DEVELOPER_ID" ]; then
     echo "warning: no Developer ID Application identity; the release will be ad-hoc signed" >&2
 fi
