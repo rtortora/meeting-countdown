@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Builds MeetingCountdown and wraps it in a .app bundle (needed for the Info.plist
 # calendar usage string and LSUIElement). Usage: scripts/build-app.sh [debug|release]
+# Optional env: ARCHS="arm64 x86_64" for a universal binary; VERSION=1.2.3 to stamp
+# CFBundleShortVersionString (release builds set both).
 set -euo pipefail
 
 CONFIG="${1:-release}"
@@ -8,13 +10,20 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP="$ROOT/build/MeetingCountdown.app"
 
 cd "$ROOT"
-swift build -c "$CONFIG"
-BIN_DIR="$(swift build -c "$CONFIG" --show-bin-path)"
+ARCH_FLAGS=()
+for arch in ${ARCHS:-}; do
+    ARCH_FLAGS+=(--arch "$arch")
+done
+swift build -c "$CONFIG" ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"}
+BIN_DIR="$(swift build -c "$CONFIG" ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"} --show-bin-path)"
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_DIR/MeetingCountdown" "$APP/Contents/MacOS/MeetingCountdown"
 cp "$ROOT/Resources/Info.plist" "$APP/Contents/Info.plist"
+if [ -n "${VERSION:-}" ]; then
+    plutil -replace CFBundleShortVersionString -string "$VERSION" "$APP/Contents/Info.plist"
+fi
 
 # App icon: resize Resources/AppIcon.png into an iconset, then pack it as AppIcon.icns.
 ICONSET="$ROOT/build/AppIcon.iconset"
