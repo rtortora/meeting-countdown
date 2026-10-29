@@ -30,6 +30,9 @@ final class CalendarService {
 
     private let store = EKEventStore()
     private var changeObserver: NSObjectProtocol?
+    /// Set when launched with `--demo`: a made-up schedule stands in for the user's calendars.
+    private let demo = ProcessInfo.processInfo.arguments.contains(DemoCalendar.launchArgument)
+        ? DemoCalendar(anchor: Date()) : nil
 
     /// Called on the main actor whenever the calendar database changes (events added, moved, deleted, accounts synced).
     var onChange: (() -> Void)?
@@ -47,6 +50,7 @@ final class CalendarService {
     }
 
     var access: Access {
+        if demo != nil { return .granted }
         switch EKEventStore.authorizationStatus(for: .event) {
         case .fullAccess:
             return .granted
@@ -77,13 +81,14 @@ final class CalendarService {
     /// Drops EventKit's cached accounts and calendars and asks remote accounts to sync. Anything the sync
     /// turns up arrives later through `onChange`.
     func refreshAccounts() {
-        guard access == .granted else { return }
+        guard demo == nil, access == .granted else { return }
         store.reset()
         store.refreshSourcesIfNecessary()
     }
 
     /// Every event calendar, grouped by account, accounts and calendars sorted by name.
     func accounts() -> [CalendarAccount] {
+        if demo != nil { return Self.demoAccounts() }
         guard access == .granted else { return [] }
         let bySource = Dictionary(grouping: store.calendars(for: .event)) { $0.source.sourceIdentifier }
         return bySource.values
@@ -100,6 +105,10 @@ final class CalendarService {
 
     /// The meetings the menu lists, plus the next one even if it's days away.
     func schedule(now: Date = Date(), selection: CalendarSelection) -> MeetingSchedule {
+        if let demo {
+            let events = demo.events().filter { $0.calendarID.map(selection.includes) ?? true }
+            return MeetingSelector.schedule(from: events, now: now)
+        }
         guard access == .granted else { return .empty }
         let calendars = store.calendars(for: .event).filter { selection.includes($0.calendarIdentifier) }
         // Every calendar turned off: nothing to watch (and EventKit isn't asked about an empty list).
@@ -130,8 +139,28 @@ final class CalendarService {
     }
 
     func color(ofCalendar id: String) -> CGColor? {
+        if demo != nil {
+            return DemoCalendar.calendar(withID: id).map(Self.color(of:))
+        }
         guard access == .granted else { return nil }
         return store.calendar(withIdentifier: id)?.cgColor
+    }
+
+    private static func demoAccounts() -> [CalendarAccount] {
+        Dictionary(grouping: DemoCalendar.calendars, by: \.accountID).values
+            .map { calendars in
+                CalendarAccount(
+                    id: calendars[0].accountID,
+                    title: calendars[0].accountTitle,
+                    calendars: calendars.map {
+                        CalendarInfo(id: $0.id, title: $0.title, color: color(of: $0))
+                    })
+            }
+            .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+    }
+
+    private static func color(of calendar: DemoCalendar.CalendarSpec) -> CGColor {
+        CGColor(srgbRed: calendar.red, green: calendar.green, blue: calendar.blue, alpha: 1)
     }
 
     /// Shows the event in Calendar.app, or just opens Calendar if that fails.

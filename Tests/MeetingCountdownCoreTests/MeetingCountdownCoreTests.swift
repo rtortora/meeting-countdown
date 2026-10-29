@@ -349,3 +349,22 @@ final class CalendarSelectionTests: XCTestCase {
         XCTAssertEqual(selection.excludedIDs, [])
     }
 }
+
+final class DemoCalendarTests: XCTestCase {
+    func testScheduleShowsOverlayForNextMeeting() {
+        let now = Date(timeIntervalSinceReferenceDate: 800_000_000)
+        let schedule = MeetingSelector.schedule(from: DemoCalendar(anchor: now).events(), now: now)
+
+        XCTAssertEqual(schedule.recent.map(\.title), ["Team Standup"])
+        XCTAssertEqual(schedule.next?.title, "Design Review")
+        XCTAssertEqual(schedule.next?.videoLink?.provider, .googleMeet)
+        XCTAssertEqual(schedule.later.map(\.title), ["Acme Quarterly Check-in", "Lunch with Sam"])
+        XCTAssertTrue(Countdown.isOverlayVisible(start: schedule.next!.startDate, now: now))
+    }
+
+    func testEveryEventIsOnAKnownCalendar() {
+        for event in DemoCalendar(anchor: Date()).events() {
+            XCTAssertNotNil(event.calendarID.flatMap(DemoCalendar.calendar(withID:)), event.id)
+        }
+    }
+}

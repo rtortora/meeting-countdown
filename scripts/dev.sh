@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # Rebuilds the app, quits any running instance, and launches the fresh build.
-# Usage: scripts/dev.sh [debug|release]   (defaults to debug for faster builds)
+# Usage: scripts/dev.sh [debug|release] [app args...]   (defaults to debug for faster builds)
+# e.g. scripts/dev.sh debug --demo   shows a made-up schedule instead of your calendars.
 set -euo pipefail
 
 CONFIG="${1:-debug}"
+shift || true
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP="$ROOT/build/MeetingCountdown.app"
 BUNDLE_ID="com.rtortora.MeetingCountdown"
@@ -25,5 +27,9 @@ if pgrep -x MeetingCountdown >/dev/null; then
     fi
 fi
 
-open "$APP"
+if [ $# -gt 0 ]; then
+    open "$APP" --args "$@"
+else
+    open "$APP"
+fi
 echo "Launched $APP"

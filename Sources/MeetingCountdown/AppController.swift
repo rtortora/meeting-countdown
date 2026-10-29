@@ -71,6 +71,13 @@ final class AppController: NSObject, NSMenuDelegate {
         case .granted, .denied:
             refresh()
         }
+
+        // For screenshots (with `--demo`): open the menu once the app has settled.
+        if ProcessInfo.processInfo.arguments.contains("--show-menu") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+                self?.statusItem.button?.performClick(nil)
+            }
+        }
     }
 
     // MARK: - State
