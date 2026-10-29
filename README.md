@@ -1,6 +1,10 @@
-# Meeting Countdown
+<p align="center">
+  <img src="docs/images/icon.png" alt="Meeting Countdown app icon: a calendar with a blue countdown badge" width="128">
+</p>
 
-Don't miss a meeting!
+<h1 align="center">Meeting Countdown</h1>
+
+<p align="center">Don't miss a meeting!</p>
 
 Meeting Countdown is a small free Mac menu bar app that watches your calendar and puts a live countdown on screen in the ten minutes before your next meeting.
 
