@@ -88,34 +88,45 @@ private struct SettingsView: View {
         }
     }
 
+    /// The result of a check sits above the button in the same row, so it shows without scrolling.
     private var updatesSection: some View {
         Section {
             LabeledContent("Version") {
-                HStack {
-                    Text(updates.currentVersion)
-                        .textSelection(.enabled)
-                    Button("Check for Updates", action: updates.check)
-                        .disabled(updates.state == .checking)
+                VStack(alignment: .trailing, spacing: 6) {
+                    updateStatus
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                    HStack {
+                        Text(updates.currentVersion)
+                            .textSelection(.enabled)
+                        if case .available(let release) = updates.state {
+                            Button("Open Download Page") { NSWorkspace.shared.open(release.pageURL) }
+                        } else {
+                            Button("Check for Updates", action: updates.check)
+                                .disabled(updates.state == .checking)
+                        }
+                    }
                 }
             }
-            switch updates.state {
-            case .idle:
-                EmptyView()
-            case .checking:
-                LabeledContent("Checking GitHub…") {
-                    ProgressView().controlSize(.small)
-                }
-            case .upToDate:
-                Text("You're up to date.")
-                    .foregroundStyle(.secondary)
-            case .available(let release):
-                LabeledContent("Version \(release.versionString) is available.") {
-                    Button("Open Download Page") { NSWorkspace.shared.open(release.pageURL) }
-                }
-            case .failed(let message):
-                Text(message)
-                    .foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private var updateStatus: some View {
+        switch updates.state {
+        case .idle:
+            EmptyView()
+        case .checking:
+            HStack(spacing: 6) {
+                ProgressView().controlSize(.mini)
+                Text("Checking GitHub…")
             }
+        case .upToDate:
+            Text("You're up to date.")
+        case .available(let release):
+            Text("Version \(release.versionString) is available.")
+        case .failed(let message):
+            Text(message)
         }
     }
 
@@ -383,7 +394,7 @@ final class SettingsWindowController {
         let window = NSWindow(contentViewController: NSHostingController(rootView: view))
         window.title = "Meeting Countdown Settings"
         window.styleMask = [.titled, .closable, .resizable]
-        window.setContentSize(NSSize(width: 460, height: 620))
+        window.setContentSize(NSSize(width: 460, height: 600))
         window.isReleasedWhenClosed = false
         window.center()
         return window
