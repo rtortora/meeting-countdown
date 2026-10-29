@@ -20,6 +20,7 @@ final class SettingsOptions {
 private struct SettingsView: View {
     @Bindable var settings: AppSettings
     let options: SettingsOptions
+    let updates: UpdateChecker
     let openPrivacySettings: () -> Void
     let refresh: () -> Void
     let openDataAccessSettings: () -> Void
@@ -54,12 +55,7 @@ private struct SettingsView: View {
                 }
             }
             permissionsSection
-            Section {
-                LabeledContent("Version") {
-                    Text(Self.version)
-                        .textSelection(.enabled)
-                }
-            }
+            updatesSection
         }
         .formStyle(.grouped)
         .frame(minWidth: 440, minHeight: 320)
@@ -92,8 +88,36 @@ private struct SettingsView: View {
         }
     }
 
-    /// Stamped by `build-app.sh`: the release number, or `git describe` output for local builds.
-    private static let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown"
+    private var updatesSection: some View {
+        Section {
+            LabeledContent("Version") {
+                HStack {
+                    Text(updates.currentVersion)
+                        .textSelection(.enabled)
+                    Button("Check for Updates", action: updates.check)
+                        .disabled(updates.state == .checking)
+                }
+            }
+            switch updates.state {
+            case .idle:
+                EmptyView()
+            case .checking:
+                LabeledContent("Checking GitHub…") {
+                    ProgressView().controlSize(.small)
+                }
+            case .upToDate:
+                Text("You're up to date.")
+                    .foregroundStyle(.secondary)
+            case .available(let release):
+                LabeledContent("Version \(release.versionString) is available.") {
+                    Button("Open Download Page") { NSWorkspace.shared.open(release.pageURL) }
+                }
+            case .failed(let message):
+                Text(message)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
 
     private var allowedLabel: some View {
         Label("Allowed", systemImage: "checkmark.circle.fill")
@@ -291,6 +315,7 @@ final class SettingsWindowController {
     private let settings: AppSettings
     private let calendar: CalendarService
     private let options = SettingsOptions()
+    private let updates = UpdateChecker()
     private var window: NSWindow?
     private var activationObserver: NSObjectProtocol?
     /// Set once the user starts picking a Chrome profile, so later reloads keep the list current.
@@ -339,7 +364,7 @@ final class SettingsWindowController {
 
     private func makeWindow() -> NSWindow {
         let view = SettingsView(
-            settings: settings, options: options,
+            settings: settings, options: options, updates: updates,
             openPrivacySettings: { CalendarService.openPrivacySettings() },
             refresh: { [weak self] in
                 self?.calendar.refreshAccounts()
@@ -358,7 +383,7 @@ final class SettingsWindowController {
         let window = NSWindow(contentViewController: NSHostingController(rootView: view))
         window.title = "Meeting Countdown Settings"
         window.styleMask = [.titled, .closable, .resizable]
-        window.setContentSize(NSSize(width: 460, height: 560))
+        window.setContentSize(NSSize(width: 460, height: 620))
         window.isReleasedWhenClosed = false
         window.center()
         return window

@@ -11,6 +11,11 @@ This file records decisions and things learned the hard way that aren't obvious 
 - README screenshots: `scripts/dev.sh debug --demo --show-menu`, then `screencapture -l <id>` per window. Find the IDs with `CGWindowListCopyWindowInfo`, filtered by PID: owner names come back empty without Screen Recording access. Clicking the status item from AppleScript needs System Events Automation access, which the terminal doesn't have; that's why `--show-menu` exists (and `--show-settings`, for the Settings window). The menu's vibrancy renders flat gray in a `-l` capture, so capture its region (`-R`) over a white borderless window at `statusBar + 1` level (above the menu bar, below the menu). While the menu is open the app's run loop is in menu tracking, so AppleScript `quit` times out; use `pkill`.
 - To inspect real calendar data, a terminal process is refused calendar access. Wrap a probe in a small ad-hoc-signed `.app` with `NSCalendarsFullAccessUsageDescription`, and launch it with `open -W` so macOS can ask.
 
+## Releases
+
+- `scripts/release.sh [--minor|--major]` publishes a notarized `.dmg` to GitHub Releases from this machine (no CI: the Developer ID cert and notarytool profile live in the local keychain). The version comes from the newest `vX.Y.Z` tag; local builds are stamped with `git describe`.
+- "Check for Updates" in Settings calls GitHub's `releases/latest` API without credentials, so it answers 404 ("No releases found") while the repo is private.
+
 ## Video call links (Join)
 
 **Where links live.** EventKit has no conference field: Google's structured conference data isn't exposed. Detection scans `EKEvent.url`, then `location`, then `notes`, and takes the first call link it finds (`VideoLinkDetector`).

@@ -368,3 +368,30 @@ final class DemoCalendarTests: XCTestCase {
         }
     }
 }
+
+final class UpdateTests: XCTestCase {
+    func testReadsTagsAndLocalBuildVersions() {
+        XCTAssertEqual(AppVersion("v0.1.2")?.description, "0.1.2")
+        XCTAssertEqual(AppVersion("0.1.1-2-g1118ad1-dirty")?.description, "0.1.1")
+        XCTAssertNil(AppVersion("0.1"))
+        XCTAssertNil(AppVersion("Unknown"))
+    }
+
+    func testComparesNumericallyNotAlphabetically() {
+        XCTAssertLessThan(AppVersion("0.9.0")!, AppVersion("0.10.0")!)
+        XCTAssertLessThan(AppVersion("1.9.9")!, AppVersion("2.0.0")!)
+    }
+
+    func testOffersOnlyNewerReleases() throws {
+        let json = Data(#"{"tag_name": "v0.1.2", "html_url": "https://github.com/o/r/releases/tag/v0.1.2", "draft": false}"#.utf8)
+        let release = try LatestRelease(json: json)
+        XCTAssertEqual(release.versionString, "0.1.2")
+        XCTAssertEqual(release.pageURL.absoluteString, "https://github.com/o/r/releases/tag/v0.1.2")
+        XCTAssertTrue(release.isNewer(than: "0.1.1"))
+        // A local build after 0.1.1 is still older than 0.1.2.
+        XCTAssertTrue(release.isNewer(than: "0.1.1-3-gabcdef0"))
+        XCTAssertFalse(release.isNewer(than: "0.1.2"))
+        XCTAssertFalse(release.isNewer(than: "0.1.2-1-gabcdef0-dirty"))
+        XCTAssertFalse(release.isNewer(than: "Unknown"))
+    }
+}
